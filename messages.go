@@ -6,3 +6,7 @@ const (
     SendUser  = fb.UserMessageStart
     WatchUser = iota
 )
+
+type UserRequest struct {
+    User string
+}

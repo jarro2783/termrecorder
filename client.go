@@ -9,20 +9,20 @@ type Writer struct {
     reader   fb.ReadData
 }
 
-type UserRequest struct {
-    User string
-}
-
 type writeListener struct {
     listener Listener
 }
 
-func (*writeListener) Data(messageType byte, data []byte) {
+func (listen *writeListener) Data(messageType byte, data []byte) {
+    listen.listener.Bytes(data)
 }
 
 func (listen *writeListener) Message(messageType byte, data []byte) {
     switch messageType {
     case SendUser:
+        var user UserRequest
+        json.Unmarshal(data, user)
+        listen.listener.Send(&user)
 
     case WatchUser:
         var user UserRequest
@@ -31,7 +31,7 @@ func (listen *writeListener) Message(messageType byte, data []byte) {
     }
 }
 
-func Connect(host string, port int, user string) (*Writer, error) {
+func Connect(host string, port int, listener Listener) (*Writer, error) {
     var writer *Writer
     var err error
 
@@ -40,13 +40,13 @@ func Connect(host string, port int, user string) (*Writer, error) {
     writer.endpoint, err = fb.Connect("tcp", fmt.Sprintf("%s:%d", host, port),
         writer.reader)
 
-    if err != nil {
-        ustruct := UserRequest{user}
-        juser, _ := json.Marshal(ustruct)
-        writer.endpoint.WriteMessage(SendUser, juser)
-    }
-
     return writer, err
+}
+
+func (writer *Writer) Watch(user string) {
+    ustruct := UserRequest{user}
+    juser, _ := json.Marshal(ustruct)
+    writer.endpoint.WriteMessage(SendUser, juser)
 }
 
 func (writer *Writer) Write(data []byte) {
