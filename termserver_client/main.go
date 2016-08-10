@@ -5,7 +5,6 @@ import "fmt"
 import "os"
 
 import "github.com/jarro2783/termserver"
-//import fb "github.com/jarro2783/featherbyte"
 
 func main() {
     user := flag.String("user", "", "The name of the user to record")
@@ -24,11 +23,24 @@ func main() {
 
     fmt.Printf("Session for %s connecting to %s:%d\n", *user, *host, *port)
 
-    _, err := termserver.CreateWriter(*host, *port, *user)
+    writer, err := termserver.Connect(*host, *port, *user)
 
     if err != nil {
         fmt.Printf("Error connecting to host: %s\n", err.Error())
         os.Exit(1)
+    }
+
+    var data []byte = make([]byte, 1024)
+    for true {
+        n, err := os.Stdin.Read(data)
+
+        if err != nil {
+            break
+        }
+
+        if n != 0 {
+            writer.Write(data[0: n])
+        }
     }
 }
 
