@@ -9,28 +9,6 @@ type Writer struct {
     reader   fb.ReadData
 }
 
-type writeListener struct {
-    listener Listener
-}
-
-func (listen *writeListener) Data(messageType byte, data []byte) {
-    listen.listener.Bytes(data)
-}
-
-func (listen *writeListener) Message(messageType byte, data []byte) {
-    switch messageType {
-    case SendUser:
-        var user UserRequest
-        json.Unmarshal(data, user)
-        listen.listener.Send(&user)
-
-    case WatchUser:
-        var user UserRequest
-        json.Unmarshal(data, user)
-        listen.listener.Watch(&user)
-    }
-}
-
 func Connect(host string, port int, listener Listener) (*Writer, error) {
     var writer *Writer
     var err error

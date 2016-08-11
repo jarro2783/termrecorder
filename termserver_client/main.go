@@ -78,6 +78,8 @@ func main() {
         os.Exit(1)
     }
 
+    writer.Watch(*user)
+
     var data []byte = make([]byte, 1024)
     for true {
         n, err := os.Stdin.Read(data)
