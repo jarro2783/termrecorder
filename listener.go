@@ -28,7 +28,7 @@ func (listen *writeListener) Message(messageType byte, data []byte) {
     switch messageType {
     case SendUser:
         var user UserRequest
-        json.Unmarshal(data, user)
+        json.Unmarshal(data, &user)
         listen.listener.Send(&user)
 
     case WatchUser:
