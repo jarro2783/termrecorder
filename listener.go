@@ -1,4 +1,4 @@
-package termserver
+package termrecorder
 
 import "encoding/json"
 

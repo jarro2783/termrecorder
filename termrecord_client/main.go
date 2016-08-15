@@ -4,7 +4,7 @@ import "flag"
 import "fmt"
 import "os"
 
-import "github.com/jarro2783/termserver"
+import "github.com/jarro2783/termrecorder"
 
 type SendListener struct {
 }
@@ -16,10 +16,10 @@ type WatchListener struct {
 func (*SendListener) Bytes([]byte) {
 }
 
-func (*SendListener) Send(*termserver.UserRequest) {
+func (*SendListener) Send(*termrecorder.UserRequest) {
 }
 
-func (*SendListener) Watch(*termserver.UserRequest) {
+func (*SendListener) Watch(*termrecorder.UserRequest) {
 }
 
 //Only bytes should get data here
@@ -27,10 +27,10 @@ func (*WatchListener) Bytes(data []byte) {
     os.Stdout.Write(data)
 }
 
-func (*WatchListener) Send(*termserver.UserRequest) {
+func (*WatchListener) Send(*termrecorder.UserRequest) {
 }
 
-func (*WatchListener) Watch(*termserver.UserRequest) {
+func (*WatchListener) Watch(*termrecorder.UserRequest) {
 }
 
 func main() {
@@ -59,7 +59,7 @@ func main() {
         cmdError("Host not specified")
     }
 
-    var watcher termserver.Listener
+    var watcher termrecorder.Listener
 
     if (*watch) {
         watcher = new(WatchListener)
@@ -71,7 +71,7 @@ func main() {
 
     fmt.Printf("Session for %s connecting to %s:%d\n", *user, *host, *port)
 
-    writer, err := termserver.Connect(*host, *port, watcher)
+    writer, err := termrecorder.Connect(*host, *port, watcher)
 
     if err != nil {
         fmt.Printf("Error connecting to host: %s\n", err.Error())

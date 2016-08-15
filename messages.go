@@ -1,4 +1,4 @@
-package termserver
+package termrecorder
 
 import fb "github.com/jarro2783/featherbyte"
 
