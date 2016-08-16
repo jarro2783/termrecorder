@@ -13,7 +13,7 @@ type writeListener struct {
     listener Listener
 }
 
-func newListener(l Listener) *writeListener {
+func NewListener(l Listener) *writeListener {
     w := new(writeListener)
     w.listener = l
 

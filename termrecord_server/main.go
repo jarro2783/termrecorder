@@ -2,7 +2,11 @@ package main
 
 import fb "github.com/jarro2783/featherbyte"
 import "github.com/jarro2783/termrecorder"
-import "fmt"
+
+type publisherChannel struct {
+    done <-chan struct{}
+    data chan<- []byte
+}
 
 type subscribeRequest struct {
     user string
@@ -11,7 +15,7 @@ type subscribeRequest struct {
 
 type publishRequest struct {
     user string
-    listeners chan<- (chan<- []byte)
+    listeners chan<- publisherChannel
 }
 
 func coordinator(subscribe <-chan subscribeRequest,
@@ -30,23 +34,32 @@ func coordinator(subscribe <-chan subscribeRequest,
     }
 }
 
-func (handler *connectionHandler) Connection(*fb.Endpoint) {
-    fmt.Printf("New connection")
+func (handler *connectionHandler) Connection(endpoint *fb.Endpoint) {
+    l := makeListener(endpoint, handler.subscribe, handler.publish)
+
+    go endpoint.StartReader(termrecorder.NewListener(l))
+}
+
+type dataSender struct {
+    send chan []byte
 }
 
 type listener struct {
+    endpoint *fb.Endpoint
     subscribe chan<- subscribeRequest
     publish chan<- publishRequest
+
+    send *dataSender
 }
 
 func (l *listener) Bytes(data []byte) {
-    fmt.Printf("%s", string(data))
+    if l.send != nil {
+        l.send.send <- data
+    }
 }
 
 func (l *listener) Send(user *termrecorder.UserRequest) {
-    fmt.Printf("Got user request for %s\n", user.User)
-
-    var response chan chan<- []byte = make(chan chan<- []byte)
+    var response chan publisherChannel = make(chan publisherChannel)
 
     var pub = publishRequest {
         user.User,
@@ -57,11 +70,13 @@ func (l *listener) Send(user *termrecorder.UserRequest) {
 
     dataChannel := make(chan []byte)
 
+    l.send = &dataSender{dataChannel}
+
     go publisher(dataChannel, response)
 }
 
-func publisher(data <-chan []byte, register <-chan chan<- []byte) {
-    subscribers := make([](chan<- []byte), 0, 10)
+func publisher(data <-chan []byte, register <-chan publisherChannel) {
+    subscribers := make([]publisherChannel, 0, 10)
     for {
         select {
             case bytes, ok := <-data:
@@ -71,7 +86,14 @@ func publisher(data <-chan []byte, register <-chan chan<- []byte) {
             }
 
             for s := range(subscribers) {
-                subscribers[s] <- bytes
+                pc := subscribers[s]
+
+                select {
+                    case pc.data <- bytes:
+
+                    case <-pc.done:
+                    //remove the current channel
+                }
             }
 
             case subscriber, ok := <-register:
@@ -85,11 +107,34 @@ func publisher(data <-chan []byte, register <-chan chan<- []byte) {
     }
 }
 
-func (l *listener) Watch(user *termrecorder.UserRequest) {
-    fmt.Printf("Watch user")
+func subscriber(endpoint *fb.Endpoint, data <-chan []byte) {
+    for {
+        select {
+            case d, ok := <-data:
+            if ok {
+                endpoint.WriteBytes(d)
+            } else {
+                break
+            }
+        }
+    }
 }
 
-func makeListener(subscribe chan<- subscribeRequest,
+func (l *listener) Watch(user *termrecorder.UserRequest) {
+    response := make(chan (<-chan []byte))
+    request := subscribeRequest {
+        user.User,
+        response,
+    }
+
+    l.subscribe <- request
+
+    data := <-response
+
+    go subscriber(l.endpoint, data)
+}
+
+func makeListener(endpoint *fb.Endpoint, subscribe chan<- subscribeRequest,
     publish chan<- publishRequest) *listener {
 
     l := new(listener)
@@ -100,13 +145,16 @@ func makeListener(subscribe chan<- subscribeRequest,
 }
 
 type connectionHandler struct {
-    *listener
+    subscribe chan subscribeRequest
+    publish chan publishRequest
 }
 
-func makeHandler(listen *listener) *connectionHandler {
+func makeHandler(subscribe chan subscribeRequest,
+    publish chan publishRequest) *connectionHandler {
     h := new(connectionHandler)
 
-    h.listener = listen
+    h.subscribe = subscribe
+    h.publish = publish
 
     return h
 }
@@ -118,5 +166,5 @@ func main() {
     go coordinator(subscribe, publish)
 
     termrecorder.Listen("localhost", 34234,
-        makeHandler(makeListener(subscribe, publish)))
+        makeHandler(subscribe, publish))
 }
