@@ -1,5 +1,7 @@
 package main
 
+import "fmt"
+import "container/list"
 import fb "github.com/jarro2783/featherbyte"
 import "github.com/jarro2783/termrecorder"
 
@@ -8,9 +10,14 @@ type publisherChannel struct {
     data chan<- []byte
 }
 
+type subscriberChannel struct {
+    done chan<- struct{}
+    data <-chan []byte
+}
+
 type subscribeRequest struct {
     user string
-    response chan<- <-chan []byte
+    response chan<- subscriberChannel
 }
 
 type publishRequest struct {
@@ -21,15 +28,41 @@ type publishRequest struct {
 func coordinator(subscribe <-chan subscribeRequest,
     publish <-chan publishRequest) {
 
-    select {
-        case _, ok := <-subscribe:
+    users := make(map[string]chan<- publisherChannel)
 
-        if ok {
-        }
+    for {
+        select {
+            case s, ok := <-subscribe:
 
-        case _, ok := <-publish:
+            fmt.Printf("Coordinator got subscribe request for %s\n",
+                s.user)
 
-        if ok {
+            if ok {
+                if u := users[s.user]; u != nil {
+                    done := make(chan struct{})
+                    data := make(chan []byte)
+
+                    s.response <- subscriberChannel {
+                        done,
+                        data,
+                    }
+
+                    u <- publisherChannel {
+                        done,
+                        data,
+                    }
+                } else {
+                    close(s.response)
+                }
+            }
+
+            case p, ok := <-publish:
+
+            fmt.Printf("Coordinator got publish request\n")
+
+            if ok {
+                users[p.user] = p.listeners
+            }
         }
     }
 }
@@ -59,11 +92,12 @@ func (l *listener) Bytes(data []byte) {
 }
 
 func (l *listener) Send(user *termrecorder.UserRequest) {
-    var response chan publisherChannel = make(chan publisherChannel)
+    fmt.Printf("Got request to send %s\n", user.User)
+    var subscribe chan publisherChannel = make(chan publisherChannel)
 
     var pub = publishRequest {
         user.User,
-        response,
+        subscribe,
     }
 
     l.publish <- pub
@@ -72,11 +106,13 @@ func (l *listener) Send(user *termrecorder.UserRequest) {
 
     l.send = &dataSender{dataChannel}
 
-    go publisher(dataChannel, response)
+    go publisher(dataChannel, subscribe)
 }
 
 func publisher(data <-chan []byte, register <-chan publisherChannel) {
-    subscribers := make([]publisherChannel, 0, 10)
+    subscribers := list.New()
+    remove := make([]*list.Element, 0, 5)
+
     for {
         select {
             case bytes, ok := <-data:
@@ -85,16 +121,25 @@ func publisher(data <-chan []byte, register <-chan publisherChannel) {
                 break
             }
 
-            for s := range(subscribers) {
-                pc := subscribers[s]
+            fmt.Printf("%s", string(bytes))
+
+            for e := subscribers.Front(); e != nil; e = e.Next() {
+                pc := e.Value.(publisherChannel)
 
                 select {
                     case pc.data <- bytes:
 
                     case <-pc.done:
                     //remove the current channel
+                    remove = append(remove, e)
                 }
             }
+
+            for r := range(remove) {
+                subscribers.Remove(remove[r])
+            }
+
+            remove = remove[0:0]
 
             case subscriber, ok := <-register:
 
@@ -102,16 +147,19 @@ func publisher(data <-chan []byte, register <-chan publisherChannel) {
                 break
             }
 
-            subscribers = append(subscribers, subscriber)
+            fmt.Printf("Adding subscriber\n")
+
+            subscribers.PushBack(subscriber)
         }
     }
 }
 
-func subscriber(endpoint *fb.Endpoint, data <-chan []byte) {
+func subscriber(endpoint *fb.Endpoint, data subscriberChannel) {
     for {
         select {
-            case d, ok := <-data:
+            case d, ok := <-data.data:
             if ok {
+                fmt.Printf("%s", string(d))
                 endpoint.WriteBytes(d)
             } else {
                 break
@@ -121,7 +169,8 @@ func subscriber(endpoint *fb.Endpoint, data <-chan []byte) {
 }
 
 func (l *listener) Watch(user *termrecorder.UserRequest) {
-    response := make(chan (<-chan []byte))
+    fmt.Printf("Got request to watch %s\n", user.User)
+    response := make(chan subscriberChannel)
     request := subscribeRequest {
         user.User,
         response,
@@ -129,7 +178,14 @@ func (l *listener) Watch(user *termrecorder.UserRequest) {
 
     l.subscribe <- request
 
-    data := <-response
+    data, ok := <-response
+
+    if !ok {
+        fmt.Printf("Invalid watch request")
+        return
+    }
+
+    fmt.Printf("starting subscriber\n")
 
     go subscriber(l.endpoint, data)
 }
@@ -140,6 +196,7 @@ func makeListener(endpoint *fb.Endpoint, subscribe chan<- subscribeRequest,
     l := new(listener)
     l.subscribe = subscribe
     l.publish = publish
+    l.endpoint = endpoint
 
     return l
 }

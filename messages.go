@@ -3,8 +3,8 @@ package termrecorder
 import fb "github.com/jarro2783/featherbyte"
 
 const (
-    SendUser  = fb.UserMessageStart
-    WatchUser = iota
+    SendUser  = iota + fb.UserMessageStart
+    WatchUser = iota + fb.UserMessageStart
 )
 
 type UserRequest struct {

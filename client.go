@@ -14,7 +14,7 @@ func Connect(host string, port int, listener Listener) (*Writer, error) {
     var err error
 
     writer = new(Writer)
-    writer.reader = new(writeListener)
+    writer.reader = NewListener(listener)
     writer.endpoint, err = fb.Connect("tcp", fmt.Sprintf("%s:%d", host, port),
         writer.reader)
 
@@ -22,6 +22,12 @@ func Connect(host string, port int, listener Listener) (*Writer, error) {
 }
 
 func (writer *Writer) Watch(user string) {
+    ustruct := UserRequest{user}
+    juser, _ := json.Marshal(ustruct)
+    writer.endpoint.WriteMessage(WatchUser, juser)
+}
+
+func (writer *Writer) Send(user string) {
     ustruct := UserRequest{user}
     juser, _ := json.Marshal(ustruct)
     writer.endpoint.WriteMessage(SendUser, juser)

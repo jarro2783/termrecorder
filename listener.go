@@ -33,7 +33,7 @@ func (listen *writeListener) Message(messageType byte, data []byte) {
 
     case WatchUser:
         var user UserRequest
-        json.Unmarshal(data, user)
+        json.Unmarshal(data, &user)
         listen.listener.Watch(&user)
     }
 }

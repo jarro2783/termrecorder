@@ -78,19 +78,25 @@ func main() {
         os.Exit(1)
     }
 
-    writer.Watch(*user)
+    if (*send) {
+        writer.Send(*user)
 
-    var data []byte = make([]byte, 1024)
-    for true {
-        n, err := os.Stdin.Read(data)
+        var data []byte = make([]byte, 1024)
+        for true {
+            n, err := os.Stdin.Read(data)
 
-        if err != nil {
-            break
+            if err != nil {
+                break
+            }
+
+            if n != 0 {
+                writer.Write(data[0: n])
+            }
         }
-
-        if n != 0 {
-            writer.Write(data[0: n])
-        }
+    } else {
+        writer.Watch(*user)
+        var data[1]byte
+        os.Stdin.Read(data[:])
     }
 }
 
