@@ -73,21 +73,17 @@ func (handler *connectionHandler) Connection(endpoint *fb.Endpoint) {
     go endpoint.StartReader(termrecorder.NewListener(l))
 }
 
-type dataSender struct {
-    send chan []byte
-}
-
 type listener struct {
     endpoint *fb.Endpoint
     subscribe chan<- subscribeRequest
     publish chan<- publishRequest
 
-    send *dataSender
+    send chan []byte
 }
 
 func (l *listener) Bytes(data []byte) {
     if l.send != nil {
-        l.send.send <- data
+        l.send <- data
     }
 }
 
@@ -104,7 +100,7 @@ func (l *listener) Send(user *termrecorder.UserRequest) {
 
     dataChannel := make(chan []byte)
 
-    l.send = &dataSender{dataChannel}
+    l.send = dataChannel
 
     go publisher(dataChannel, subscribe)
 }
@@ -113,12 +109,13 @@ func publisher(data <-chan []byte, register <-chan publisherChannel) {
     subscribers := list.New()
     remove := make([]*list.Element, 0, 5)
 
+    Loop:
     for {
         select {
             case bytes, ok := <-data:
 
             if !ok {
-                break
+                break Loop
             }
 
             fmt.Printf("%s", string(bytes))
@@ -144,7 +141,7 @@ func publisher(data <-chan []byte, register <-chan publisherChannel) {
             case subscriber, ok := <-register:
 
             if !ok {
-                break
+                break Loop
             }
 
             fmt.Printf("Adding subscriber\n")
@@ -152,20 +149,29 @@ func publisher(data <-chan []byte, register <-chan publisherChannel) {
             subscribers.PushBack(subscriber)
         }
     }
+
+    fmt.Printf("Terminating publisher\n")
 }
 
 func subscriber(endpoint *fb.Endpoint, data subscriberChannel) {
+    Loop:
     for {
         select {
             case d, ok := <-data.data:
             if ok {
                 fmt.Printf("%s", string(d))
-                endpoint.WriteBytes(d)
+                err := endpoint.WriteBytes(d)
+
+                if err != nil {
+                    close(data.done)
+                }
             } else {
-                break
+                break Loop
             }
         }
     }
+
+    fmt.Printf("Terminating subscriber\n")
 }
 
 func (l *listener) Watch(user *termrecorder.UserRequest) {
@@ -188,6 +194,12 @@ func (l *listener) Watch(user *termrecorder.UserRequest) {
     fmt.Printf("starting subscriber\n")
 
     go subscriber(l.endpoint, data)
+}
+
+func (l *listener) Exiting() {
+    if l.send != nil {
+        close(l.send)
+    }
 }
 
 func makeListener(endpoint *fb.Endpoint, subscribe chan<- subscribeRequest,

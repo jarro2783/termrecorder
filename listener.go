@@ -7,6 +7,8 @@ type Listener interface {
     Send(user *UserRequest)
 
     Bytes(data []byte)
+
+    Exiting()
 }
 
 type writeListener struct {
@@ -36,4 +38,8 @@ func (listen *writeListener) Message(messageType byte, data []byte) {
         json.Unmarshal(data, &user)
         listen.listener.Watch(&user)
     }
+}
+
+func (listen *writeListener) Exiting() {
+    listen.listener.Exiting()
 }
