@@ -105,16 +105,24 @@ func (l *listener) Send(user *termrecorder.UserRequest) {
 
     l.send = dataChannel
 
-    go publisher(dataChannel, subscribe)
+    ctx, cancel := context.WithCancel(context.Background())
+
+    l.CancelFunc = cancel
+
+    go publisher(ctx, dataChannel, subscribe)
 }
 
-func publisher(data <-chan []byte, register <-chan publisherChannel) {
+func publisher(ctx context.Context, data <-chan []byte,
+    register <-chan publisherChannel) {
     subscribers := list.New()
     remove := make([]*list.Element, 0, 5)
 
     Loop:
     for {
         select {
+            case <-ctx.Done():
+            break Loop
+
             case bytes, ok := <-data:
 
             if !ok {
