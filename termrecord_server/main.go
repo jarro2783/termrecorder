@@ -4,6 +4,7 @@ import "fmt"
 import "container/list"
 import fb "github.com/jarro2783/featherbyte"
 import "github.com/jarro2783/termrecorder"
+import "golang.org/x/net/context"
 
 type publisherChannel struct {
     done <-chan struct{}
@@ -79,6 +80,8 @@ type listener struct {
     publish chan<- publishRequest
 
     send chan []byte
+
+    context.CancelFunc
 }
 
 func (l *listener) Bytes(data []byte) {
@@ -153,10 +156,15 @@ func publisher(data <-chan []byte, register <-chan publisherChannel) {
     fmt.Printf("Terminating publisher\n")
 }
 
-func subscriber(endpoint *fb.Endpoint, data subscriberChannel) {
+func subscriber(ctx context.Context,
+    endpoint *fb.Endpoint,
+    data subscriberChannel) {
     Loop:
     for {
         select {
+            case <- ctx.Done():
+            break Loop
+
             case d, ok := <-data.data:
             if ok {
                 fmt.Printf("%s", string(d))
@@ -193,12 +201,20 @@ func (l *listener) Watch(user *termrecorder.UserRequest) {
 
     fmt.Printf("starting subscriber\n")
 
-    go subscriber(l.endpoint, data)
+    ctx, cancel := context.WithCancel(context.Background())
+
+    l.CancelFunc = cancel
+
+    go subscriber(ctx, l.endpoint, data)
 }
 
 func (l *listener) Exiting() {
     if l.send != nil {
         close(l.send)
+    }
+
+    if l.CancelFunc != nil {
+        l.CancelFunc()
     }
 }
 
