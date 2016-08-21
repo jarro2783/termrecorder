@@ -75,7 +75,7 @@ func main() {
         watcher = new(SendListener)
     }
 
-    fmt.Printf("Session for %s connecting to %s:%d\n", *user, *host, *port)
+    //fmt.Printf("Session for %s connecting to %s:%d\n", *user, *host, *port)
 
     writer, err := termrecorder.Connect(*host, *port, watcher)
 

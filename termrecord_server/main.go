@@ -5,6 +5,7 @@ import "container/list"
 import fb "github.com/jarro2783/featherbyte"
 import "github.com/jarro2783/termrecorder"
 import "golang.org/x/net/context"
+import "time"
 
 type publisherChannel struct {
     done <-chan struct{}
@@ -122,6 +123,10 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
     var newStart int = 0
     var needle = "\033[2J"
 
+    thetime := time.Now().UTC().Format("2006-01-02.15-04-05")
+
+    fmt.Printf("Starting session for %s at %s\n", user, thetime)
+
     Loop:
     for {
         select {
@@ -135,6 +140,7 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
             }
 
             nextClear := len(sessionData)
+            clearStart := nextClear
 
             //store data for this session
             sessionData = append(sessionData, bytes...)
@@ -146,9 +152,10 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
                         needlePos++
                     } else {
                         needlePos = 0
+                        clearStart = nextClear
                     }
                 } else {
-                    newStart = nextClear
+                    newStart = clearStart
                     fmt.Printf("New clear at %d\n", newStart)
                     needlePos = 0
                 }
@@ -187,6 +194,7 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
 
             //send them everything since the last clear screen
             subscriber.data <- sessionData[newStart:]
+            //subscriber.data <- sessionData
         }
     }
 
