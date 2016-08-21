@@ -109,13 +109,18 @@ func (l *listener) Send(user *termrecorder.UserRequest) {
 
     l.CancelFunc = cancel
 
-    go publisher(ctx, dataChannel, subscribe)
+    go publisher(ctx, user.User, dataChannel, subscribe)
 }
 
-func publisher(ctx context.Context, data <-chan []byte,
+func publisher(ctx context.Context, user string, data <-chan []byte,
     register <-chan publisherChannel) {
     subscribers := list.New()
     remove := make([]*list.Element, 0, 5)
+
+    sessionData := make([]byte, 0, 1024*1024)
+
+    var newStart int = 0
+    var needle = "\033[2J"
 
     Loop:
     for {
@@ -129,7 +134,28 @@ func publisher(ctx context.Context, data <-chan []byte,
                 break Loop
             }
 
-            fmt.Printf("%s", string(bytes))
+            nextClear := len(sessionData)
+
+            //store data for this session
+            sessionData = append(sessionData, bytes...)
+
+            needlePos := 0
+            for ; nextClear < len(sessionData); nextClear++ {
+                if needlePos != len(needle) {
+                    if sessionData[nextClear] == needle[needlePos] {
+                        needlePos++
+                    } else {
+                        needlePos = 0
+                    }
+                } else {
+                    newStart = nextClear
+                    fmt.Printf("New clear at %d\n", newStart)
+                    needlePos = 0
+                }
+            }
+
+            //fmt.Printf("%s", string(bytes))
+            fmt.Printf("Got %d bytes\n", len(bytes))
 
             for e := subscribers.Front(); e != nil; e = e.Next() {
                 pc := e.Value.(publisherChannel)
@@ -155,13 +181,16 @@ func publisher(ctx context.Context, data <-chan []byte,
                 break Loop
             }
 
-            fmt.Printf("Adding subscriber\n")
+            fmt.Printf("Adding subscriber starting at byte %d\n", newStart)
 
             subscribers.PushBack(subscriber)
+
+            //send them everything since the last clear screen
+            subscriber.data <- sessionData[newStart:]
         }
     }
 
-    fmt.Printf("Terminating publisher\n")
+    fmt.Printf("Terminating publisher for %s\n", user)
 }
 
 func subscriber(ctx context.Context,
@@ -175,7 +204,7 @@ func subscriber(ctx context.Context,
 
             case d, ok := <-data.data:
             if ok {
-                fmt.Printf("%s", string(d))
+                //fmt.Printf("%s", string(d))
                 err := endpoint.WriteBytes(d)
 
                 if err != nil {
