@@ -116,25 +116,17 @@ func (l *listener) Send(user *termrecorder.UserRequest) {
     go publisher(ctx, user.User, dataChannel, subscribe)
 }
 
-type frame struct {
-    time int
-    nano int
-    data []byte
-}
-
 func publisher(ctx context.Context, user string, data <-chan []byte,
     register <-chan publisherChannel) {
     subscribers := list.New()
     remove := make([]*list.Element, 0, 5)
 
     frames := make([]frame, 0, 500)
-    sessionData := make([]byte, 0, 1024*1024)
-
-    var newStart int = 0
-    var needle = "\033[2J"
 
     now := time.Now()
     thetime := now.UTC().Format("2006-01-02.15-04-05")
+
+    framebuffer := newFramebuffer(thetime + ".ttyrec")
 
     fmt.Printf("Starting session for %s at %s\n", user, thetime)
 
@@ -146,35 +138,15 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
 
             case bytes, ok := <-data:
 
-            now = time.Now()
-
             if !ok {
                 break Loop
             }
 
-            nextClear := len(sessionData)
-            clearStart := nextClear
+            now = time.Now()
 
             //store data for this session
-            sessionData = append(sessionData, bytes...)
-            frames = append(frames,
+            framebuffer.addFrame(
                 frame{int(now.Unix()), now.Nanosecond() / 1000, bytes})
-
-            needlePos := 0
-            for ; nextClear < len(sessionData); nextClear++ {
-                if needlePos != len(needle) {
-                    if sessionData[nextClear] == needle[needlePos] {
-                        needlePos++
-                    } else {
-                        needlePos = 0
-                        clearStart = nextClear
-                    }
-                } else {
-                    newStart = clearStart
-                    fmt.Printf("New clear at %d\n", newStart)
-                    needlePos = 0
-                }
-            }
 
             //fmt.Printf("%s", string(bytes))
             fmt.Printf("Got %d bytes\n", len(bytes))
@@ -203,12 +175,10 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
                 break Loop
             }
 
-            fmt.Printf("Adding subscriber starting at byte %d\n", newStart)
-
             subscribers.PushBack(subscriber)
 
             //send them everything since the last clear screen
-            subscriber.data <- sessionData[newStart:]
+            subscriber.data <- framebuffer.data
             //subscriber.data <- sessionData
         }
     }
@@ -229,7 +199,7 @@ func write(data []frame, filename string) {
         f := data[i]
         buffer := new(bytes.Buffer)
         binary.Write(buffer, binary.LittleEndian, uint32(f.time))
-        binary.Write(buffer, binary.LittleEndian, uint32(f.nano))
+        binary.Write(buffer, binary.LittleEndian, uint32(f.micro))
         binary.Write(buffer, binary.LittleEndian, uint32(len(f.data)))
         file.Write(buffer.Bytes())
         file.Write(f.data)
