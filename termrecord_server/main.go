@@ -1,10 +1,13 @@
 package main
 
-import "fmt"
+import "bytes"
 import "container/list"
+import "encoding/binary"
+import "fmt"
 import fb "github.com/jarro2783/featherbyte"
 import "github.com/jarro2783/termrecorder"
 import "golang.org/x/net/context"
+import "os"
 import "time"
 
 type publisherChannel struct {
@@ -113,17 +116,25 @@ func (l *listener) Send(user *termrecorder.UserRequest) {
     go publisher(ctx, user.User, dataChannel, subscribe)
 }
 
+type frame struct {
+    time int
+    nano int
+    data []byte
+}
+
 func publisher(ctx context.Context, user string, data <-chan []byte,
     register <-chan publisherChannel) {
     subscribers := list.New()
     remove := make([]*list.Element, 0, 5)
 
+    frames := make([]frame, 0, 500)
     sessionData := make([]byte, 0, 1024*1024)
 
     var newStart int = 0
     var needle = "\033[2J"
 
-    thetime := time.Now().UTC().Format("2006-01-02.15-04-05")
+    now := time.Now()
+    thetime := now.UTC().Format("2006-01-02.15-04-05")
 
     fmt.Printf("Starting session for %s at %s\n", user, thetime)
 
@@ -135,6 +146,8 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
 
             case bytes, ok := <-data:
 
+            now = time.Now()
+
             if !ok {
                 break Loop
             }
@@ -144,6 +157,8 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
 
             //store data for this session
             sessionData = append(sessionData, bytes...)
+            frames = append(frames,
+                frame{int(now.Unix()), now.Nanosecond() / 1000, bytes})
 
             needlePos := 0
             for ; nextClear < len(sessionData); nextClear++ {
@@ -199,6 +214,28 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
     }
 
     fmt.Printf("Terminating publisher for %s\n", user)
+
+    write(frames, thetime + ".ttyrec")
+}
+
+func write(data []frame, filename string) {
+    file, err := os.Create(filename)
+
+    if err != nil {
+        return
+    }
+
+    for i := range(data) {
+        f := data[i]
+        buffer := new(bytes.Buffer)
+        binary.Write(buffer, binary.LittleEndian, uint32(f.time))
+        binary.Write(buffer, binary.LittleEndian, uint32(f.nano))
+        binary.Write(buffer, binary.LittleEndian, uint32(len(f.data)))
+        file.Write(buffer.Bytes())
+        file.Write(f.data)
+    }
+
+    file.Close()
 }
 
 func subscriber(ctx context.Context,
