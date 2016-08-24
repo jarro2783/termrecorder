@@ -1,13 +1,10 @@
 package main
 
-import "bytes"
 import "container/list"
-import "encoding/binary"
 import "fmt"
 import fb "github.com/jarro2783/featherbyte"
 import "github.com/jarro2783/termrecorder"
 import "golang.org/x/net/context"
-import "os"
 import "time"
 
 type publisherChannel struct {
@@ -73,7 +70,8 @@ func coordinator(subscribe <-chan subscribeRequest,
 }
 
 func (handler *connectionHandler) Connection(endpoint *fb.Endpoint) {
-    l := makeListener(endpoint, handler.subscribe, handler.publish)
+    l := makeListener(endpoint, handler.subscribe, handler.publish,
+        handler.uploaders)
 
     go endpoint.StartReader(termrecorder.NewListener(l))
 }
@@ -86,6 +84,8 @@ type listener struct {
     send chan []byte
 
     context.CancelFunc
+
+    uploaders []termrecorder.Uploader
 }
 
 func (l *listener) Bytes(data []byte) {
@@ -113,20 +113,22 @@ func (l *listener) Send(user *termrecorder.UserRequest) {
 
     l.CancelFunc = cancel
 
-    go publisher(ctx, user.User, dataChannel, subscribe)
+    go publisher(ctx, user.User, dataChannel, subscribe, l.uploaders)
 }
 
 func publisher(ctx context.Context, user string, data <-chan []byte,
-    register <-chan publisherChannel) {
+    register <-chan publisherChannel,
+    uploaders []termrecorder.Uploader) {
+
     subscribers := list.New()
     remove := make([]*list.Element, 0, 5)
-
-    frames := make([]frame, 0, 500)
 
     now := time.Now()
     thetime := now.UTC().Format("2006-01-02.15-04-05")
 
-    framebuffer := newFramebuffer(thetime + ".ttyrec")
+    filename := thetime + ".ttyrec"
+
+    framebuffer := newFramebuffer(user, filename)
 
     fmt.Printf("Starting session for %s at %s\n", user, thetime)
 
@@ -183,29 +185,15 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
         }
     }
 
+    file := framebuffer.file
+
+    for _, u := range(uploaders) {
+        file.Seek(0, 0)
+        u.Upload(user, filename, file)
+    }
+
+    framebuffer.close()
     fmt.Printf("Terminating publisher for %s\n", user)
-
-    write(frames, thetime + ".ttyrec")
-}
-
-func write(data []frame, filename string) {
-    file, err := os.Create(filename)
-
-    if err != nil {
-        return
-    }
-
-    for i := range(data) {
-        f := data[i]
-        buffer := new(bytes.Buffer)
-        binary.Write(buffer, binary.LittleEndian, uint32(f.time))
-        binary.Write(buffer, binary.LittleEndian, uint32(f.micro))
-        binary.Write(buffer, binary.LittleEndian, uint32(len(f.data)))
-        file.Write(buffer.Bytes())
-        file.Write(f.data)
-    }
-
-    file.Close()
 }
 
 func subscriber(ctx context.Context,
@@ -270,13 +258,17 @@ func (l *listener) Exiting() {
     }
 }
 
-func makeListener(endpoint *fb.Endpoint, subscribe chan<- subscribeRequest,
-    publish chan<- publishRequest) *listener {
+func makeListener(
+    endpoint *fb.Endpoint,
+    subscribe chan<- subscribeRequest,
+    publish chan<- publishRequest,
+    uploaders []termrecorder.Uploader) *listener {
 
     l := new(listener)
     l.subscribe = subscribe
     l.publish = publish
     l.endpoint = endpoint
+    l.uploaders = uploaders
 
     return l
 }
@@ -284,6 +276,7 @@ func makeListener(endpoint *fb.Endpoint, subscribe chan<- subscribeRequest,
 type connectionHandler struct {
     subscribe chan subscribeRequest
     publish chan publishRequest
+    uploaders []termrecorder.Uploader
 }
 
 func makeHandler(subscribe chan subscribeRequest,
@@ -292,6 +285,7 @@ func makeHandler(subscribe chan subscribeRequest,
 
     h.subscribe = subscribe
     h.publish = publish
+    h.uploaders = make([]termrecorder.Uploader, 0)
 
     return h
 }
