@@ -16,7 +16,7 @@ func (uploader *AwsUploader) Upload(
     source *os.File) {
 
     sess := session.New(&aws.Config{
-        Region: aws.String("ap-southeast-2"),
+        Region: aws.String(uploader.region),
     })
 
     svc := s3.New(sess)

@@ -165,8 +165,8 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
                 }
             }
 
-            for r := range(remove) {
-                subscribers.Remove(remove[r])
+            for _, r := range remove {
+                subscribers.Remove(r)
             }
 
             remove = remove[0:0]
@@ -187,7 +187,7 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
 
     file := framebuffer.file
 
-    for _, u := range(uploaders) {
+    for _, u := range uploaders {
         file.Seek(0, 0)
         u.Upload(user, filename, file)
     }
