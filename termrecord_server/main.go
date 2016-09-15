@@ -1,8 +1,9 @@
 package main
 
 import "container/list"
-import "fmt"
 import fb "github.com/jarro2783/featherbyte"
+import "flag"
+import "fmt"
 import "github.com/jarro2783/termrecorder"
 import "golang.org/x/net/context"
 import "time"
@@ -280,22 +281,36 @@ type connectionHandler struct {
 }
 
 func makeHandler(subscribe chan subscribeRequest,
-    publish chan publishRequest) *connectionHandler {
+    publish chan publishRequest,
+    bucket string,
+    region string) *connectionHandler {
+
     h := new(connectionHandler)
 
     h.subscribe = subscribe
     h.publish = publish
-    h.uploaders = make([]termrecorder.Uploader, 0)
+    h.uploaders = make([]termrecorder.Uploader, 0, 2)
+
+    if bucket != "" {
+        h.uploaders = append(h.uploaders, termrecorder.MakeAwsUploader(
+            region, bucket))
+    }
 
     return h
 }
 
 func main() {
+    port := flag.Int("port", 34234, "The port to listen on")
+    bucket := flag.String("bucket", "", "The S3 bucket to upload to")
+    region := flag.String("region", "us-east-1", "The region to use for AWS")
+
+    flag.Parse()
+
     subscribe := make(chan subscribeRequest)
     publish := make(chan publishRequest)
 
     go coordinator(subscribe, publish)
 
-    termrecorder.Listen("localhost", 34234,
-        makeHandler(subscribe, publish))
+    termrecorder.Listen("", *port,
+        makeHandler(subscribe, publish, *bucket, *region))
 }

@@ -10,6 +10,11 @@ type AwsUploader struct {
     bucket string
 }
 
+func  MakeAwsUploader(region string, bucket string) *AwsUploader {
+    aws := &AwsUploader{region, bucket}
+    return aws
+}
+
 func (uploader *AwsUploader) Upload(
     user string,
     filename string,

@@ -42,7 +42,7 @@ func (*WatchListener) Exiting() {
 func main() {
     user := flag.String("user", "", "The name of the user to record")
     host := flag.String("host", "", "The host to send the session to")
-    port := flag.Int("port", 45123, "The port to connect to on the host")
+    port := flag.Int("port", 34234, "The port to connect to on the host")
     watch := flag.Bool("watch", false, "Watch the requested user")
     send := flag.Bool("send", false,
         "Send a session for the requested user")
