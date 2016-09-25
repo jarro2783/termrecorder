@@ -28,6 +28,7 @@ func (*SendListener) Exiting() {
 //Only bytes should get data here
 func (*WatchListener) Bytes(data []byte) {
     os.Stdout.Write(data)
+    os.Stdout.Sync()
 }
 
 func (*WatchListener) Send(*termrecorder.UserRequest) {

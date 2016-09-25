@@ -57,6 +57,8 @@ func coordinator(subscribe <-chan subscribeRequest,
                 } else {
                     close(s.response)
                 }
+            } else {
+                fmt.Printf("Error reading from subscribe")
             }
 
             case p, ok := <-publish:
@@ -65,6 +67,8 @@ func coordinator(subscribe <-chan subscribeRequest,
 
             if ok {
                 users[p.user] = p.listeners
+            } else {
+                fmt.Printf("Error reading from publish")
             }
         }
     }
@@ -155,18 +159,22 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
             fmt.Printf("Got %d bytes\n", len(bytes))
 
             for e := subscribers.Front(); e != nil; e = e.Next() {
+                fmt.Printf("Trying subscriber\n")
                 pc := e.Value.(publisherChannel)
 
                 select {
                     case pc.data <- bytes:
+                    fmt.Printf("Sent subscriber some data\n")
 
                     case <-pc.done:
                     //remove the current channel
+                    fmt.Printf("Channel done\n")
                     remove = append(remove, e)
                 }
             }
 
             for _, r := range remove {
+                fmt.Printf("Removing a subscriber\n")
                 subscribers.Remove(r)
             }
 
@@ -204,6 +212,8 @@ func subscriber(ctx context.Context,
     for {
         select {
             case <- ctx.Done():
+            fmt.Printf("subscriber done\n")
+            close(data.done)
             break Loop
 
             case d, ok := <-data.data:
@@ -212,9 +222,13 @@ func subscriber(ctx context.Context,
                 err := endpoint.WriteBytes(d)
 
                 if err != nil {
+                    fmt.Printf("error writing to listener\n")
                     close(data.done)
+                    break Loop
                 }
             } else {
+                fmt.Printf("No more data for subscriber\n")
+                close(data.done)
                 break Loop
             }
         }
@@ -251,10 +265,12 @@ func (l *listener) Watch(user *termrecorder.UserRequest) {
 
 func (l *listener) Exiting() {
     if l.send != nil {
+        fmt.Printf("Closing sender\n")
         close(l.send)
     }
 
     if l.CancelFunc != nil {
+        fmt.Printf("Cancel goroutines\n")
         l.CancelFunc()
     }
 }
