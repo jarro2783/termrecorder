@@ -43,7 +43,7 @@ func coordinator(subscribe <-chan subscribeRequest,
             if ok {
                 if u := users[s.user]; u != nil {
                     done := make(chan struct{})
-                    data := make(chan []byte)
+                    data := make(chan []byte, 100)
 
                     s.response <- subscriberChannel {
                         done,
@@ -101,7 +101,7 @@ func (l *listener) Bytes(data []byte) {
 
 func (l *listener) Send(user *termrecorder.UserRequest) {
     fmt.Printf("Got request to send %s\n", user.User)
-    var subscribe chan publisherChannel = make(chan publisherChannel)
+    var subscribe chan publisherChannel = make(chan publisherChannel, 5)
 
     var pub = publishRequest {
         user.User,
@@ -110,7 +110,7 @@ func (l *listener) Send(user *termrecorder.UserRequest) {
 
     l.publish <- pub
 
-    dataChannel := make(chan []byte)
+    dataChannel := make(chan []byte, 20)
 
     l.send = dataChannel
 
@@ -155,16 +155,11 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
             framebuffer.addFrame(
                 frame{int(now.Unix()), now.Nanosecond() / 1000, bytes})
 
-            //fmt.Printf("%s", string(bytes))
-            fmt.Printf("Got %d bytes\n", len(bytes))
-
             for e := subscribers.Front(); e != nil; e = e.Next() {
-                fmt.Printf("Trying subscriber\n")
                 pc := e.Value.(publisherChannel)
 
                 select {
                     case pc.data <- bytes:
-                    fmt.Printf("Sent subscriber some data\n")
 
                     case <-pc.done:
                     //remove the current channel
@@ -322,8 +317,8 @@ func main() {
 
     flag.Parse()
 
-    subscribe := make(chan subscribeRequest)
-    publish := make(chan publishRequest)
+    subscribe := make(chan subscribeRequest, 10)
+    publish := make(chan publishRequest, 10)
 
     go coordinator(subscribe, publish)
 
