@@ -189,7 +189,9 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
         }
     }
 
+    framebuffer.flush()
     file := framebuffer.file
+    file.Sync()
 
     for _, u := range uploaders {
         file.Seek(0, 0)
@@ -294,7 +296,9 @@ type connectionHandler struct {
 func makeHandler(subscribe chan subscribeRequest,
     publish chan publishRequest,
     bucket string,
-    region string) *connectionHandler {
+    region string,
+    root string,
+    subpath string) *connectionHandler {
 
     h := new(connectionHandler)
 
@@ -304,8 +308,10 @@ func makeHandler(subscribe chan subscribeRequest,
 
     if bucket != "" {
         h.uploaders = append(h.uploaders, termrecorder.MakeAwsUploader(
-            region, bucket))
+            region, bucket, root, subpath))
     }
+
+    h.uploaders = append(h.uploaders, makeFileCopyUploader())
 
     return h
 }
@@ -314,6 +320,10 @@ func main() {
     port := flag.Int("port", 34234, "The port to listen on")
     bucket := flag.String("bucket", "", "The S3 bucket to upload to")
     region := flag.String("region", "us-east-1", "The region to use for AWS")
+    subpath := flag.String("subpath", "",
+        "A subpath to put the recording in under the user's name.")
+    root := flag.String("root", "",
+        "The root directory in the bucket to put the recordings.")
 
     flag.Parse()
 
@@ -323,5 +333,5 @@ func main() {
     go coordinator(subscribe, publish)
 
     termrecorder.Listen("", *port,
-        makeHandler(subscribe, publish, *bucket, *region))
+        makeHandler(subscribe, publish, *bucket, *region, *root, *subpath))
 }

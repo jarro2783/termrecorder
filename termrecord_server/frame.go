@@ -40,6 +40,7 @@ func (fb *framebuffer) write() {
 
 func (fb *framebuffer) flush() {
     fb.write()
+    fb.frames = fb.frames[0:0]
 }
 
 func (fb *framebuffer) close() {
@@ -75,7 +76,6 @@ func (fb *framebuffer) addFrame(f frame) {
 
     if len(fb.frames) == cap(fb.frames) {
         //write out the frames and start again
-        fb.write()
-        fb.frames = fb.frames[0:0]
+        fb.flush()
     }
 }
