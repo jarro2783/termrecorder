@@ -22,13 +22,13 @@ func Connect(host string, port int, listener Listener) (*Writer, error) {
 }
 
 func (writer *Writer) Watch(user string) {
-    ustruct := UserRequest{user}
+    ustruct := WatchRequest{user}
     juser, _ := json.Marshal(ustruct)
     writer.endpoint.WriteMessage(WatchUser, juser)
 }
 
-func (writer *Writer) Send(user string) {
-    ustruct := UserRequest{user}
+func (writer *Writer) Send(user string, gameid string) {
+    ustruct := PublishRequest{user, gameid}
     juser, _ := json.Marshal(ustruct)
     writer.endpoint.WriteMessage(SendUser, juser)
 }

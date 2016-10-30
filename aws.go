@@ -20,6 +20,7 @@ func  MakeAwsUploader(region, bucket, root, subpath string) *AwsUploader {
 
 func (uploader *AwsUploader) Upload(
     user string,
+    gameid string,
     filename string,
     source *os.File) {
 
@@ -38,6 +39,10 @@ func (uploader *AwsUploader) Upload(
 
     if len(uploader.subpath) != 0 {
         key += "/" + uploader.subpath
+    }
+
+    if len(gameid) != 0 {
+        key += "/" + gameid
     }
 
     key += "/" +  filename

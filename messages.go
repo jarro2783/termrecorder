@@ -7,6 +7,11 @@ const (
     WatchUser = iota + fb.UserMessageStart
 )
 
-type UserRequest struct {
+type WatchRequest struct {
     User string
+}
+
+type PublishRequest struct {
+    User string
+    Gameid string
 }

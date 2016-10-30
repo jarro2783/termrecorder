@@ -16,10 +16,10 @@ type WatchListener struct {
 func (*SendListener) Bytes([]byte) {
 }
 
-func (*SendListener) Send(*termrecorder.UserRequest) {
+func (*SendListener) Send(*termrecorder.PublishRequest) {
 }
 
-func (*SendListener) Watch(*termrecorder.UserRequest) {
+func (*SendListener) Watch(*termrecorder.WatchRequest) {
 }
 
 func (*SendListener) Exiting() {
@@ -31,10 +31,10 @@ func (*WatchListener) Bytes(data []byte) {
     os.Stdout.Sync()
 }
 
-func (*WatchListener) Send(*termrecorder.UserRequest) {
+func (*WatchListener) Send(*termrecorder.PublishRequest) {
 }
 
-func (*WatchListener) Watch(*termrecorder.UserRequest) {
+func (*WatchListener) Watch(*termrecorder.WatchRequest) {
 }
 
 func (*WatchListener) Exiting() {
@@ -45,6 +45,8 @@ func main() {
     host := flag.String("host", "", "The host to send the session to")
     port := flag.Int("port", 34234, "The port to connect to on the host")
     watch := flag.Bool("watch", false, "Watch the requested user")
+    gameid := flag.String("gameid", "",
+        "An optional game id if sending a session")
     send := flag.Bool("send", false,
         "Send a session for the requested user")
 
@@ -86,7 +88,7 @@ func main() {
     }
 
     if (*send) {
-        writer.Send(*user)
+        writer.Send(*user, *gameid)
 
         var data []byte = make([]byte, 1024)
         for true {

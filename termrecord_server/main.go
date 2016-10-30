@@ -99,7 +99,7 @@ func (l *listener) Bytes(data []byte) {
     }
 }
 
-func (l *listener) Send(user *termrecorder.UserRequest) {
+func (l *listener) Send(user *termrecorder.PublishRequest) {
     fmt.Printf("Got request to send %s\n", user.User)
     var subscribe chan publisherChannel = make(chan publisherChannel, 5)
 
@@ -118,12 +118,18 @@ func (l *listener) Send(user *termrecorder.UserRequest) {
 
     l.CancelFunc = cancel
 
-    go publisher(ctx, user.User, dataChannel, subscribe, l.uploaders)
+    go publisher(ctx,
+        user.User,
+        user.Gameid,
+        dataChannel,
+        subscribe,
+        l.uploaders)
 }
 
-func publisher(ctx context.Context, user string, data <-chan []byte,
-    register <-chan publisherChannel,
-    uploaders []termrecorder.Uploader) {
+func publisher(ctx context.Context, user string,
+        gameid string, data <-chan []byte,
+        register <-chan publisherChannel,
+        uploaders []termrecorder.Uploader) {
 
     subscribers := list.New()
     remove := make([]*list.Element, 0, 5)
@@ -195,7 +201,7 @@ func publisher(ctx context.Context, user string, data <-chan []byte,
 
     for _, u := range uploaders {
         file.Seek(0, 0)
-        u.Upload(user, filename, file)
+        u.Upload(user, gameid, filename, file)
     }
 
     framebuffer.close()
@@ -234,7 +240,7 @@ func subscriber(ctx context.Context,
     fmt.Printf("Terminating subscriber\n")
 }
 
-func (l *listener) Watch(user *termrecorder.UserRequest) {
+func (l *listener) Watch(user *termrecorder.WatchRequest) {
     fmt.Printf("Got request to watch %s\n", user.User)
     response := make(chan subscriberChannel)
     request := subscribeRequest {

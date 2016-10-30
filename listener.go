@@ -3,8 +3,8 @@ package termrecorder
 import "encoding/json"
 
 type Listener interface {
-    Watch(user *UserRequest)
-    Send(user *UserRequest)
+    Watch(user *WatchRequest)
+    Send(user *PublishRequest)
 
     Bytes(data []byte)
 
@@ -29,12 +29,12 @@ func (listen *writeListener) Data(messageType byte, data []byte) {
 func (listen *writeListener) Message(messageType byte, data []byte) {
     switch messageType {
     case SendUser:
-        var user UserRequest
+        var user PublishRequest
         json.Unmarshal(data, &user)
         listen.listener.Send(&user)
 
     case WatchUser:
-        var user UserRequest
+        var user WatchRequest
         json.Unmarshal(data, &user)
         listen.listener.Watch(&user)
     }
