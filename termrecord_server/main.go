@@ -317,8 +317,6 @@ func makeHandler(subscribe chan subscribeRequest,
             region, bucket, root, subpath))
     }
 
-    h.uploaders = append(h.uploaders, makeFileCopyUploader())
-
     return h
 }
 
