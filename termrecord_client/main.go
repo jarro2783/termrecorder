@@ -2,6 +2,7 @@ package main
 
 import "flag"
 import "fmt"
+import "container/list"
 import "os"
 import "time"
 
@@ -92,6 +93,7 @@ func main() {
 
     if (*send) {
         sendChannel := make(chan []byte, 100)
+        dataBuffer := list.New()
 
         go sender(*user, *host, *port, sendChannel)
 
@@ -104,7 +106,18 @@ func main() {
             }
 
             if n != 0 {
-                sendChannel <- data[0:n]
+                dataBuffer.PushBack([]byte(data[0:n]))
+
+                for dataBuffer.Len() > 0 {
+                    element := dataBuffer.Front()
+                    value := element.Value.([]byte)
+                    select {
+                        case sendChannel <- value:
+                            dataBuffer.Remove(element)
+                        default:
+                            break
+                    }
+                }
             }
         }
     } else {
