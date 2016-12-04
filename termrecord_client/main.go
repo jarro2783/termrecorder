@@ -3,6 +3,7 @@ package main
 import "flag"
 import "fmt"
 import "os"
+import "time"
 
 import "github.com/jarro2783/termrecorder"
 
@@ -41,7 +42,26 @@ func (*WatchListener) Exiting() {
 }
 
 func sender(user, host string, port int, input <-chan []byte) {
-    //writer.Send(user, "")
+    running := true
+
+    watcher := new(SendListener)
+
+    for running {
+        writer, err := termrecorder.Connect(host, port, watcher)
+        if err != nil {
+
+            //sleep for 5 seconds before trying to connect again
+            time.Sleep(5)
+            continue
+        }
+
+        writer.Send(user, "")
+
+        select {
+            case data:= <-input:
+            writer.Write(data)
+        }
+    }
 }
 
 func main() {
@@ -70,16 +90,6 @@ func main() {
         cmdError("Host not specified")
     }
 
-    var watcher termrecorder.Listener
-
-    if (*watch) {
-        watcher = new(WatchListener)
-    }
-
-    if (*send) {
-        watcher = new(SendListener)
-    }
-
     if (*send) {
         sendChannel := make(chan []byte, 100)
 
@@ -98,6 +108,8 @@ func main() {
             }
         }
     } else {
+        watcher := new(WatchListener)
+
         writer, err := termrecorder.Connect(*host, *port, watcher)
 
         if err != nil {
