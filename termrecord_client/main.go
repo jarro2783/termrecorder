@@ -46,21 +46,42 @@ func sender(user, host string, port int, input <-chan []byte) {
     running := true
 
     watcher := new(SendListener)
+    dataBuffer := list.New()
 
     for running {
         writer, err := termrecorder.Connect(host, port, watcher)
         if err != nil {
 
             //sleep for 5 seconds before trying to connect again
-            time.Sleep(5)
+            time.Sleep(5*time.Second)
             continue
         }
 
         writer.Send(user, "")
 
-        select {
-            case data:= <-input:
-            writer.Write(data)
+        //try to send anything that we have to send
+        //if we get a send error, save it, then reconnect and
+        //try again
+        connected := true
+        for connected {
+            select {
+                case data:= <-input:
+                dataBuffer.PushBack(data)
+            }
+
+            for dataBuffer.Len() > 0 {
+                element := dataBuffer.Front()
+                data := element.Value.([]byte)
+
+                err := writer.Write(data)
+                if err != nil {
+                    connected = false
+                    writer.Close()
+                    break
+                } else {
+                    dataBuffer.Remove(element)
+                }
+            }
         }
     }
 }

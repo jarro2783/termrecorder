@@ -33,6 +33,10 @@ func (writer *Writer) Send(user string, gameid string) {
     writer.endpoint.WriteMessage(SendUser, juser)
 }
 
-func (writer *Writer) Write(data []byte) {
-    writer.endpoint.WriteBytes(data)
+func (writer *Writer) Write(data []byte) error {
+    return writer.endpoint.WriteBytes(data)
+}
+
+func (writer *Writer) Close() {
+    writer.endpoint.Close()
 }
