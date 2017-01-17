@@ -127,7 +127,9 @@ func main() {
             }
 
             if n != 0 {
-                dataBuffer.PushBack([]byte(data[0:n]))
+                bytes := make([]byte, n)
+                copy(bytes, data[0:n])
+                dataBuffer.PushBack(bytes)
 
                 for dataBuffer.Len() > 0 {
                     element := dataBuffer.Front()
