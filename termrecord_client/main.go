@@ -101,6 +101,8 @@ func inputBuffer(input <-chan []byte, output chan<- []byte) {
             select {
                 case output <- value:
                     buffer.Remove(element)
+                default:
+                    break
             }
         }
     }
