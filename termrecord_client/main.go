@@ -86,6 +86,26 @@ func sender(user, host string, port int, input <-chan []byte) {
     }
 }
 
+func inputBuffer(input <-chan []byte, output chan<- []byte) {
+    buffer := list.New()
+
+    for {
+        select {
+            case value := <-input:
+                buffer.PushBack(value)
+        }
+
+        for buffer.Len() > 0 {
+            element := buffer.Front()
+            value := element.Value.([]byte)
+            select {
+                case output <- value:
+                    buffer.Remove(element)
+            }
+        }
+    }
+}
+
 func main() {
     user := flag.String("user", "", "The name of the user to record")
     host := flag.String("host", "", "The host to send the session to")
@@ -114,9 +134,10 @@ func main() {
 
     if (*send) {
         sendChannel := make(chan []byte, 100)
-        dataBuffer := list.New()
+        bufferChannel := make(chan []byte, 100)
 
-        go sender(*user, *host, *port, sendChannel)
+        go inputBuffer(sendChannel, bufferChannel)
+        go sender(*user, *host, *port, bufferChannel)
 
         var data []byte = make([]byte, 1024)
         for true {
@@ -129,18 +150,8 @@ func main() {
             if n != 0 {
                 bytes := make([]byte, n)
                 copy(bytes, data[0:n])
-                dataBuffer.PushBack(bytes)
 
-                for dataBuffer.Len() > 0 {
-                    element := dataBuffer.Front()
-                    value := element.Value.([]byte)
-                    select {
-                        case sendChannel <- value:
-                            dataBuffer.Remove(element)
-                        default:
-                            break
-                    }
-                }
+                sendChannel <- bytes
             }
         }
     } else {
